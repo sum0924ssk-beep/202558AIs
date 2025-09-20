@@ -11,7 +11,10 @@ export async function POST(req: Request) {
 
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    const context = transcript.map((t: any) => `${t.speaker}: ${t.content}`).join("\n");
+    const context = transcript
+      .filter((t: any) => t && t.speaker && t.content)
+      .map((t: any) => `${t.speaker}: ${t.content}`)
+      .join("\n");
     const prompt = `あなたは${agent}です。テーマ: ${topic}\nこれまでの会話:\n${context}\n50文字以内で話してください。`;
 
     const result = await model.generateContent(prompt);
@@ -21,5 +24,6 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error(error);
     return NextResponse.json({ error: "AI discussion failed" }, { status: 500 });
+    
   }
 }

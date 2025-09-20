@@ -71,11 +71,11 @@ export default function Home() {
 
       <div>
         {turns.map((t, i) => (
-          <div className="flex content-col gap-1 bg-white-100 p-2 m-2 border rounded-xl border-black-500 text-black-500" key={i}>
-            <p>
+          // <div className="flex content-col gap-1 bg-white-100 p-2 m-2 border rounded-xl border-black-500 text-black-500" key={i}>
+            <p key={i}>
               <strong>{t.speaker}:</strong> {t.content}
             </p>
-          </div>
+          // </div>
         ))}
       </div>
 
