@@ -4,7 +4,8 @@ import { useState } from "react";
 
 type Turn = { speaker: string; content: string };
 
-const agents = ["AI1", "AI2", "AI3", "AI4", "AI5"];
+const agents = ["AI1", "AI2", "AI3", "AI4"];// 議論役
+const evaluator = "AI5";// 評価役
 
 export default function Home() {
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -29,19 +30,26 @@ export default function Home() {
             body: JSON.stringify({ topic, transcript, agentIndex: i }),
           });
           const data = await res.json();
+
+          if ( data && data.turn) {
           transcript.push(data.turn);
           setTurns([...transcript]); // 1発言ずつ反映
+          }
         }
       }
 
-      // 最後に結論をまとめる（簡易版）
-      const lastRes = await fetch("/api/discussion/summary", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transcript }),
-      });
-      const lastData = await lastRes.json();
-      setConclusion(lastData.conclusion);
+      // 評価役
+      const evalRes = await fetch("/api/discussion", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ topic, transcript, agentIndex: 4 }),
+  });
+  const evalData = await evalRes.json();
+
+  // 評価役は conclusion を返す
+  if (evalData.conclusion) {
+  setConclusion(evalData.conclusion);
+}
     } catch (err) {
       console.error(err);
     }
@@ -51,7 +59,7 @@ export default function Home() {
 
   return (
     <main className="p-6 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">🤖 AI討論アプリ (5人で議論)</h1>
+      <h1 className="text-2xl font-bold mb-4">🤖 AI討論アプリ (4人+評価役)</h1>
 
       <div className="flex gap-2 mb-4">
         <input
@@ -70,7 +78,9 @@ export default function Home() {
       </div>
 
       <div>
-        {turns.map((t, i) => (
+        {turns.
+          filter((t): t is Turn => Boolean(t))
+          .map((t, i) => (
           // <div className="flex content-col gap-1 bg-white-100 p-2 m-2 border rounded-xl border-black-500 text-black-500" key={i}>
             <p key={i}>
               <strong>{t.speaker}:</strong> {t.content}
@@ -80,9 +90,9 @@ export default function Home() {
       </div>
 
       {conclusion && (
-        <div className="p-4 bg-green-100 border rounded">
-          <h2 className="font-bold mb-2">✅ 結論</h2>
-          <p>{conclusion}</p>
+        <div className="p-4 bg-green-100 border rounded mt-4">
+          <h2 className="font-bold mb-2">✅ 評価役による結論</h2>
+          <pre className="whitespace-pre-wrap">{conclusion}</pre>
         </div>
       )}
     </main>
