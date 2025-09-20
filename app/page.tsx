@@ -1,17 +1,61 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import { FaPaperPlane, FaBars } from "react-icons/fa";
+import dynamic from "next/dynamic";
+import { Turn } from "./types";
+import TopicList from "./topicList"
+import ParticipantList from "./ParticipantList"
 
-type Turn = { speaker: string; content: string };
+const ChatDisplay = dynamic<{ turns: Turn[]; conclusion?: string }>(
+  () => import("./chatComp").then((mod) => mod.ChatDisplay),
+  { ssr: false }
+);
 
-const agents = ["AI1", "AI2", "AI3", "AI4"];// 議論役
-const evaluator = "AI5";// 評価役
+const agents = ["AI1", "AI2", "AI3", "AI4"];
+const evaluator = "AI5";
 
 export default function Home() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [topic, setTopic] = useState("");
   const [loading, setLoading] = useState(false);
   const [conclusion, setConclusion] = useState("");
+  const [topics, setTopics] = useState<{ id: number; topic: string }[]>([]);
+  const [showLeft, setShowLeft] = useState(false);   // スマホ左メニュー
+  const [showRight, setShowRight] = useState(false); // スマホ右メニュー
+  useEffect(() => {
+    const fetchTopics = async () => {
+      const { data, error } = await supabase
+        .from("discussions")
+        .select("id, topic")
+        .order("created_at", { ascending: false });
+      if (!error && data) setTopics(data);
+    };
+    fetchTopics();
+  }, []);
+
+  const loadDiscussion = async (discussionId: number) => {
+    const { data, error } = await supabase
+      .from("turns")
+      .select("*")
+      .eq("discussion_id", discussionId)
+      .order("id", { ascending: true });
+
+    if (!error && data) {
+      setTurns(
+        data.map((t) => ({
+          speaker: t.speaker,
+          content: t.content,
+          timestamp: t.timestamp,
+          round: t.round,
+          is_conclusion: t.is_conclusion,
+        }))
+      );
+      const conclusionTurn = data.find((t) => t.is_conclusion);
+      setConclusion(conclusionTurn?.content || "");
+    }
+  };
 
   const startDiscussion = async () => {
     setTurns([]);
@@ -30,26 +74,64 @@ export default function Home() {
             body: JSON.stringify({ topic, transcript, agentIndex: i }),
           });
           const data = await res.json();
-
-          if ( data && data.turn) {
-          transcript.push(data.turn);
-          setTurns([...transcript]); // 1発言ずつ反映
+          if (data?.turn) {
+            const newTurn: Turn = {
+              ...data.turn,
+              timestamp: new Date().toISOString(),
+              round,
+              is_conclusion: false,
+            };
+            transcript.push(newTurn);
+            setTurns([...transcript]);
           }
         }
       }
 
       // 評価役
       const evalRes = await fetch("/api/discussion", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ topic, transcript, agentIndex: 4 }),
-  });
-  const evalData = await evalRes.json();
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic, transcript, agentIndex: 4 }),
+      });
+      const evalData = await evalRes.json();
 
-  // 評価役は conclusion を返す
-  if (evalData.conclusion) {
-  setConclusion(evalData.conclusion);
-}
+      // Supabaseに保存
+      const { data: discussionData, error: discErr } = await supabase
+        .from("discussions")
+        .insert([{ topic }])
+        .select()
+        .single();
+
+      if (discErr) throw discErr;
+      const discussionId = discussionData.id;
+
+      // transcript 保存
+      for (const t of transcript) {
+        await supabase.from("turns").insert([
+          {
+            discussion_id: discussionId,
+            speaker: t.speaker,
+            content: t.content,
+            timestamp: t.timestamp,
+            round: t.round,
+            is_conclusion: false,
+          },
+        ]);
+      }
+
+      // AI5 結論保存
+      await supabase.from("turns").insert([
+        {
+          discussion_id: discussionId,
+          speaker: evaluator,
+          content: evalData.conclusion,
+          timestamp: new Date().toISOString(),
+          round: null,
+          is_conclusion: true,
+        },
+      ]);
+
+      setConclusion(evalData.conclusion);
     } catch (err) {
       console.error(err);
     }
@@ -58,43 +140,106 @@ export default function Home() {
   };
 
   return (
-    <main className="p-6 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">🤖 AI討論アプリ (4人+評価役)</h1>
-
-      <div className="flex gap-2 mb-4">
-        <input
-          className="border flex-1 p-2 rounded"
-          value={topic}
-          onChange={(e) => setTopic(e.target.value)}
-          placeholder="議論したいテーマを入力..."
-        />
+    <main className="h-screen w-screen bg-gray-800 flex flex-col overflow-hidden">
+      {/* ヘッダー共通 */}
+      <header className="border-b border-gray-700 text-2xl h-[5%] text-center text-zinc-300 font-bold flex items-center justify-between px-4">
+        {/* スマホ: 左ボタン */}
         <button
-          className="bg-blue-500 text-white px-4 rounded"
-          onClick={startDiscussion}
-          disabled={loading}
+          className="md:hidden text-white"
+          onClick={() => setShowLeft(true)}
         >
-          {loading ? "議論中..." : "開始"}
+          <FaBars />
         </button>
-      </div>
 
-      <div>
-        {turns.
-          filter((t): t is Turn => Boolean(t))
-          .map((t, i) => (
-          // <div className="flex content-col gap-1 bg-white-100 p-2 m-2 border rounded-xl border-black-500 text-black-500" key={i}>
-            <p key={i}>
-              <strong>{t.speaker}:</strong> {t.content}
-            </p>
-          // </div>
-        ))}
-      </div>
+        <p className="flex-1 text-center">AI討論アプリ</p>
 
-      {conclusion && (
-        <div className="p-4 bg-green-100 border rounded mt-4">
-          <h2 className="font-bold mb-2">✅ 評価役による結論</h2>
-          <pre className="whitespace-pre-wrap">{conclusion}</pre>
+        {/* スマホ: 右ボタン */}
+        <button
+          className="md:hidden text-white"
+          onClick={() => setShowRight(true)}
+        >
+          <FaBars />
+        </button>
+      </header>
+
+      <div className="hidden md:flex h-full gap-2">
+        <div className="w-[20%] bg-gray-800 overflow-y-auto p-4 border-r border-gray-700">
+          <TopicList topics={topics} onSelect={loadDiscussion} />
         </div>
-      )}
+
+        <div className="w-[60%] flex flex-col h-full p-2">
+          <div className="flex-1 overflow-y-auto mb-2">
+            <ChatDisplay turns={turns} conclusion={conclusion} />
+          </div>
+          <div className="flex gap-2 mt-auto">
+            <input
+              className="flex-1 p-2 rounded bg-gray-700 text-white border"
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              placeholder="新しい議論テーマを入力"
+            />
+            <button
+              className="bg-blue-500 text-white px-4 rounded"
+              onClick={startDiscussion}
+              disabled={loading}
+            >
+              {loading ? "..." : <FaPaperPlane />}
+            </button>
+          </div>
+        </div>
+
+        <div className="w-[20%] bg-gray-800 overflow-y-auto p-4 border-l border-gray-700">
+          <ParticipantList agents={agents} evaluator={evaluator} />
+        </div>
+      </div>
+      <div className="flex md:hidden h-full"><div className="flex-1 flex flex-col p-2">
+        <div className="flex-1 overflow-y-auto mb-2">
+          <ChatDisplay turns={turns} conclusion={conclusion} />
+        </div>
+        <div className="flex gap-2 mt-auto">
+          <input
+            className="flex-1 p-2 rounded bg-gray-700 text-white border"
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+            placeholder="新しい議論テーマを入力"
+          />
+          <button
+            className="bg-blue-500 text-white px-4 rounded"
+            onClick={startDiscussion}
+            disabled={loading}
+          >
+            {loading ? "..." : <FaPaperPlane />}
+          </button>
+        </div>
+      </div>
+        {showLeft && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50">
+            <div className="absolute left-0 top-0 h-full w-3/4 bg-gray-800 p-4">
+              <button
+                className="text-white mb-4"
+                onClick={() => setShowLeft(false)}
+              >
+                閉じる
+              </button>
+              <TopicList topics={topics} onSelect={loadDiscussion} />
+            </div>
+          </div>
+        )}
+        {showRight && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50">
+            <div className="absolute right-0 top-0 h-full w-3/4 bg-gray-800 p-4">
+              <button
+                className="text-white mb-4"
+                onClick={() => setShowRight(false)}
+              >
+                閉じる
+              </button>
+              <ParticipantList agents={agents} evaluator={evaluator} />
+            </div>
+          </div>
+        )}
+      </div>
+
     </main>
   );
 }
