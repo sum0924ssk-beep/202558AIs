@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { Turn } from "@/app/types";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
@@ -34,11 +35,10 @@ ${context}
 - 最終まとめ
 →本当に最終的なまとめだけを60文字程度で簡潔に述べてください
 `;
-
 export async function POST(req: Request) {
   try {
     const { topic, transcript, agentIndex } = await req.json();
-    const context = transcript.map((t: any) => `${t.speaker}: ${t.content}`).join("\n");
+    const context = transcript.map((t: Turn) => `${t.speaker}: ${t.content}`).join("\n");
 
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
@@ -46,20 +46,20 @@ export async function POST(req: Request) {
     if (agentIndex === 4) {
       const prompt = evaluatorPrompt(topic, context);
       const result = await model.generateContent(prompt);
-      const text = result.response.text();
-      return NextResponse.json({ evaluator: evaluator, conclusion: text });
+      const text: string = await result.response.text();
+      return NextResponse.json({ evaluator, conclusion: text });
     }
 
     // 議論役の場合
-    const agent = debaters[agentIndex];
-    const rolePrompt = debaterPrompts[agent];
+    const agent: string = debaters[agentIndex];
+    const rolePrompt: string = debaterPrompts[agent];
     const prompt = `${rolePrompt}\nテーマ: ${topic}\nこれまでの会話:\n${context}\n50文字以内で話してください。`;
 
     const result = await model.generateContent(prompt);
-    const text = result.response.text();
+    const text: string = await result.response.text(); // ← await を追加
 
     return NextResponse.json({ turn: { speaker: agent, content: text } });
-  } catch (error: any) {
+  } catch (error: unknown) { // ← any を unknown に変更
     console.error(error);
     return NextResponse.json({ error: "AI discussion failed" }, { status: 500 });
   }

@@ -63,7 +63,7 @@ export default function Home() {
     setLoading(true);
 
     try {
-      let transcript: Turn[] = [];
+      const transcript: Turn[] = [];
 
       // 擬似的に順番にAPIを呼ぶ
       for (let round = 0; round < 2; round++) {
@@ -84,6 +84,9 @@ export default function Home() {
             transcript.push(newTurn);
             setTurns([...transcript]);
           }
+          const audio = new Audio("/sounds/discordNotice.mp3");
+          audio.play();
+
         }
       }
 
@@ -192,11 +195,12 @@ export default function Home() {
           <ParticipantList agents={agents} evaluator={evaluator} />
         </div>
       </div>
-      <div className="flex md:hidden h-full"><div className="flex-1 flex flex-col p-2">
-        <div className="flex-1 overflow-y-auto mb-2">
-          <ChatDisplay turns={turns} conclusion={conclusion} />
-        </div>
-        <div className="flex gap-2 mt-auto">
+      <div className="flex md:hidden h-[95%]">
+        <div className="flex-1 flex flex-col p-2">
+          <div className="flex-1 overflow-y-auto mb-2">
+            <ChatDisplay turns={turns} conclusion={conclusion} />
+          </div>
+        <div className="flex gap-2 b-2">
           <input
             className="flex-1 p-2 rounded bg-gray-700 text-white border"
             value={topic}
