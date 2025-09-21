@@ -5,8 +5,8 @@ import { supabase } from "@/lib/supabaseClient";
 import { FaPaperPlane, FaBars } from "react-icons/fa";
 import dynamic from "next/dynamic";
 import { Turn } from "./types";
-import TopicList from "./topicList"
-import ParticipantList from "./ParticipantList"
+import TopicList from "./topicList";
+import ParticipantList from "./ParticipantList";
 
 const ChatDisplay = dynamic<{ turns: Turn[]; conclusion?: string }>(
   () => import("./chatComp").then((mod) => mod.ChatDisplay),
@@ -22,8 +22,9 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [conclusion, setConclusion] = useState("");
   const [topics, setTopics] = useState<{ id: number; topic: string }[]>([]);
-  const [showLeft, setShowLeft] = useState(false);   // スマホ左メニュー
-  const [showRight, setShowRight] = useState(false); // スマホ右メニュー
+  const [showLeft, setShowLeft] = useState(false);
+  const [showRight, setShowRight] = useState(false);
+
   useEffect(() => {
     const fetchTopics = async () => {
       const { data, error } = await supabase
@@ -63,7 +64,7 @@ export default function Home() {
     setLoading(true);
 
     try {
-      const transcript: Turn[] = [];
+      const transcript: Turn[] = []; // ← const に変更
 
       // 擬似的に順番にAPIを呼ぶ
       for (let round = 0; round < 2; round++) {
@@ -73,8 +74,9 @@ export default function Home() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ topic, transcript, agentIndex: i }),
           });
-          const data = await res.json();
-          if (data?.turn) {
+          const data: { turn?: Turn } = await res.json(); // 型付け
+
+          if (data.turn) {
             const newTurn: Turn = {
               ...data.turn,
               timestamp: new Date().toISOString(),
@@ -84,9 +86,9 @@ export default function Home() {
             transcript.push(newTurn);
             setTurns([...transcript]);
           }
+
           const audio = new Audio("/sounds/discordNotice.mp3");
           audio.play();
-
         }
       }
 
@@ -96,7 +98,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ topic, transcript, agentIndex: 4 }),
       });
-      const evalData = await evalRes.json();
+      const evalData: { conclusion: string } = await evalRes.json(); // 型付け
 
       // Supabaseに保存
       const { data: discussionData, error: discErr } = await supabase
@@ -104,7 +106,6 @@ export default function Home() {
         .insert([{ topic }])
         .select()
         .single();
-
       if (discErr) throw discErr;
       const discussionId = discussionData.id;
 
@@ -144,32 +145,22 @@ export default function Home() {
 
   return (
     <main className="h-screen w-screen bg-gray-800 flex flex-col overflow-hidden">
-      {/* ヘッダー共通 */}
+      {/* ヘッダー */}
       <header className="border-b border-gray-700 text-2xl h-[5%] text-center text-zinc-300 font-bold flex items-center justify-between px-4">
-        {/* スマホ: 左ボタン */}
-        <button
-          className="md:hidden text-white"
-          onClick={() => setShowLeft(true)}
-        >
+        <button className="md:hidden text-white" onClick={() => setShowLeft(true)}>
           <FaBars />
         </button>
-
         <p className="flex-1 text-center">AI討論アプリ</p>
-
-        {/* スマホ: 右ボタン */}
-        <button
-          className="md:hidden text-white"
-          onClick={() => setShowRight(true)}
-        >
+        <button className="md:hidden text-white" onClick={() => setShowRight(true)}>
           <FaBars />
         </button>
       </header>
 
+      {/* PC表示 */}
       <div className="hidden md:flex h-full gap-2">
         <div className="w-[20%] bg-gray-800 overflow-y-auto p-4 border-r border-gray-700">
           <TopicList topics={topics} onSelect={loadDiscussion} />
         </div>
-
         <div className="w-[60%] flex flex-col h-full p-2">
           <div className="flex-1 overflow-y-auto mb-2">
             <ChatDisplay turns={turns} conclusion={conclusion} />
@@ -190,39 +181,38 @@ export default function Home() {
             </button>
           </div>
         </div>
-
         <div className="w-[20%] bg-gray-800 overflow-y-auto p-4 border-l border-gray-700">
           <ParticipantList agents={agents} evaluator={evaluator} />
         </div>
       </div>
+
+      {/* モバイル表示 */}
       <div className="flex md:hidden h-[95%]">
         <div className="flex-1 flex flex-col p-2">
           <div className="flex-1 overflow-y-auto mb-2">
             <ChatDisplay turns={turns} conclusion={conclusion} />
           </div>
-        <div className="flex gap-2 b-2">
-          <input
-            className="flex-1 p-2 rounded bg-gray-700 text-white border"
-            value={topic}
-            onChange={(e) => setTopic(e.target.value)}
-            placeholder="新しい議論テーマを入力"
-          />
-          <button
-            className="bg-blue-500 text-white px-4 rounded"
-            onClick={startDiscussion}
-            disabled={loading}
-          >
-            {loading ? "..." : <FaPaperPlane />}
-          </button>
+          <div className="flex gap-2 b-2">
+            <input
+              className="flex-1 p-2 rounded bg-gray-700 text-white border"
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              placeholder="新しい議論テーマを入力"
+            />
+            <button
+              className="bg-blue-500 text-white px-4 rounded"
+              onClick={startDiscussion}
+              disabled={loading}
+            >
+              {loading ? "..." : <FaPaperPlane />}
+            </button>
+          </div>
         </div>
-      </div>
+
         {showLeft && (
           <div className="fixed inset-0 bg-black bg-opacity-50 z-50">
             <div className="absolute left-0 top-0 h-full w-3/4 bg-gray-800 p-4">
-              <button
-                className="text-white mb-4"
-                onClick={() => setShowLeft(false)}
-              >
+              <button className="text-white mb-4" onClick={() => setShowLeft(false)}>
                 閉じる
               </button>
               <TopicList topics={topics} onSelect={loadDiscussion} />
@@ -232,10 +222,7 @@ export default function Home() {
         {showRight && (
           <div className="fixed inset-0 bg-black bg-opacity-50 z-50">
             <div className="absolute right-0 top-0 h-full w-3/4 bg-gray-800 p-4">
-              <button
-                className="text-white mb-4"
-                onClick={() => setShowRight(false)}
-              >
+              <button className="text-white mb-4" onClick={() => setShowRight(false)}>
                 閉じる
               </button>
               <ParticipantList agents={agents} evaluator={evaluator} />
@@ -243,7 +230,6 @@ export default function Home() {
           </div>
         )}
       </div>
-
     </main>
   );
 }

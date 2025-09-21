@@ -23,7 +23,6 @@ interface DiscussionRequest {
   agentIndex: number;
 }
 
-
 // 評価役のプロンプト
 const evaluatorPrompt = (topic: string, context: string) => `
 あなたは評価役AI5です。以下は4人の議論ログです。テーマは「${topic}」。
@@ -42,10 +41,13 @@ ${context}
 - 最終まとめ
 →本当に最終的なまとめだけを60文字程度で簡潔に述べてください
 `;
+
 export async function POST(req: Request) {
   try {
-    // const { topic, transcript, agentIndex } = await req.json();
-    const { topic, transcript, agentIndex }: DiscussionRequest = await req.json();
+    // 型アサーションで any を回避
+    const body = (await req.json()) as DiscussionRequest;
+    const { topic, transcript, agentIndex } = body;
+
     const context = transcript.map((t: Turn) => `${t.speaker}: ${t.content}`).join("\n");
 
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
@@ -54,21 +56,26 @@ export async function POST(req: Request) {
     if (agentIndex === 4) {
       const prompt = evaluatorPrompt(topic, context);
       const result = await model.generateContent(prompt);
-      const text: string = await result.response.text();
+      const text = await result.response.text();
       return NextResponse.json({ evaluator, conclusion: text });
     }
 
     // 議論役の場合
-    const agent: string = debaters[agentIndex];
-    const rolePrompt: string = debaterPrompts[agent];
+    const agent = debaters[agentIndex];
+    const rolePrompt = debaterPrompts[agent];
     const prompt = `${rolePrompt}\nテーマ: ${topic}\nこれまでの会話:\n${context}\n50文字以内で話してください。`;
 
     const result = await model.generateContent(prompt);
-    const text: string = await result.response.text(); // ← await を追加
+    const text = await result.response.text();
 
     return NextResponse.json({ turn: { speaker: agent, content: text } });
-  } catch (error: unknown) { // ← any を unknown に変更
+  } catch (error: unknown) {
     console.error(error);
-    return NextResponse.json({ error: "AI discussion failed" }, { status: 500 });
+
+    // unknown 型を扱う安全な方法
+    const message =
+      error instanceof Error ? error.message : "AI discussion failed";
+
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
