@@ -17,6 +17,13 @@ const debaterPrompts: Record<string, string> = {
   AI4: "あなたは議論役AI4です。テーマに対して「現実的・実務的な観点（費用、制度、社会的制約など）から発言する立場」から発言してください。",
 };
 
+interface DiscussionRequest {
+  topic: string;
+  transcript: Turn[];
+  agentIndex: number;
+}
+
+
 // 評価役のプロンプト
 const evaluatorPrompt = (topic: string, context: string) => `
 あなたは評価役AI5です。以下は4人の議論ログです。テーマは「${topic}」。
@@ -37,7 +44,8 @@ ${context}
 `;
 export async function POST(req: Request) {
   try {
-    const { topic, transcript, agentIndex } = await req.json();
+    // const { topic, transcript, agentIndex } = await req.json();
+    const { topic, transcript, agentIndex }: DiscussionRequest = await req.json();
     const context = transcript.map((t: Turn) => `${t.speaker}: ${t.content}`).join("\n");
 
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
