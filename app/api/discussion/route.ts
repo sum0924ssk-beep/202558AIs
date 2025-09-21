@@ -32,6 +32,7 @@ ${context}
 出力フォーマット:
 - 各AIの点数と評価はいらない
 - 最終まとめ
+→本当に最終的なまとめだけを60文字程度で簡潔に述べてください
 `;
 
 export async function POST(req: Request) {
