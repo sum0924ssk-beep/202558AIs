@@ -161,11 +161,11 @@ export default function Home() {
         <div className="w-[20%] bg-gray-800 overflow-y-auto p-4 border-r border-gray-700">
           <TopicList topics={topics} onSelect={loadDiscussion} />
         </div>
-        <div className="w-[60%] flex flex-col h-full p-2">
+        <div className="w-[60%] flex flex-col h-[95%] p-2">
           <div className="flex-1 overflow-y-auto mb-2">
             <ChatDisplay turns={turns} conclusion={conclusion} />
           </div>
-          <div className="flex gap-2 mt-auto">
+          <div className="flex gap-2">
             <input
               className="flex-1 p-2 rounded bg-gray-700 text-white border"
               value={topic}
