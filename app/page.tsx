@@ -63,7 +63,7 @@ export default function Home() {
     setLoading(true);
 
     try {
-      let transcript: Turn[] = [];
+      const transcript: Turn[] = [];
 
       // 擬似的に順番にAPIを呼ぶ
       for (let round = 0; round < 2; round++) {
